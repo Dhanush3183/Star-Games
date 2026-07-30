@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Games - Lobby</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-particles" id="particles"></div>
+    <div class="container glass-panel animate-in">
+        <div class="lobby-header">
+            <div>
+                <h2>Room Code</h2>
+                <div class="room-code-display" id="roomCodeDisplay">
+                    <span id="roomCodeText">------</span>
+                    <button class="btn btn-icon" onclick="copyCode()" title="Copy Code">📋</button>
+                </div>
+            </div>
+            <div>
+                <h2>Players</h2>
+                <div class="player-count" id="playerCount">0 / 0</div>
+            </div>
+        </div>
+
+        <main class="mt-2">
+            <div class="players-list" id="playersList">
+                <!-- Players injected here -->
+            </div>
+
+            <div class="host-controls mt-2" id="hostControls" style="display: none;">
+                <h3>Game Selection</h3>
+                <select id="lobbyGameSelect" class="styled-select mb-1" onchange="changeGame()">
+                    <option value="">-- Select Game --</option>
+                    <option value="chainReaction">Chain Reaction</option>
+                    <option value="ticTacToe">Tic Tac Toe</option>
+                    <option value="connectFour">Connect Four</option>
+                    <option value="drawAndGuess">Draw & Guess</option>
+                </select>
+                
+                <button class="btn btn-primary btn-block" id="btnStartGame" disabled onclick="startGame()">
+                    Start Game 🚀
+                </button>
+            </div>
+            
+            <div class="guest-controls mt-2 text-center" id="guestControls" style="display: none;">
+                <p>Waiting for host to start...</p>
+                <p>Selected Game: <span id="guestSelectedGame" class="highlight-text">None</span></p>
+            </div>
+
+            <div class="action-buttons mt-2">
+                <button class="btn btn-danger btn-block" onclick="leaveRoom()">
+                    Leave Room
+                </button>
+            </div>
+            
+            <div id="lobbyError" class="error-text text-center mt-1"></div>
+        </main>
+    </div>
+
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/socket.js"></script>
+    <script>
+        initParticles();
+        checkNickname();
+        
+        const socket = setupSocket();
+        const action = sessionStorage.getItem('action');
+        const nickname = sessionStorage.getItem('nickname');
+        
+        if (action === 'create') {
+            const maxPlayers = sessionStorage.getItem('maxPlayers');
+            const selectedGame = sessionStorage.getItem('selectedGame');
+            socket.emit('createRoom', { nickname, maxPlayers, selectedGame }, handleJoinResponse);
+        } else if (action === 'join') {
+            const code = sessionStorage.getItem('roomCode');
+            if(!code) window.location.href = 'join.html';
+            socket.emit('joinRoom', { nickname, code }, handleJoinResponse);
+        } else {
+            window.location.href = 'index.html';
+        }
+
+        function handleJoinResponse(res) {
+            if (!res.success) {
+                document.getElementById('lobbyError').innerText = res.reason;
+                setTimeout(() => window.location.href = 'index.html', 3000);
+            } else {
+                sessionStorage.setItem('roomCode', res.room.code);
+                updateLobbyUI(res.room);
+            }
+        }
+        
+        function copyCode() {
+            playSound('click');
+            const code = document.getElementById('roomCodeText').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Room code copied!');
+            });
+        }
+        
+        function changeGame() {
+            playSound('click');
+            const gameId = document.getElementById('lobbyGameSelect').value;
+            socket.emit('changeGame', gameId);
+        }
+        
+        function startGame() {
+            playSound('click');
+            socket.emit('startGame');
+        }
+        
+        function leaveRoom() {
+            playSound('click');
+            socket.emit('leaveRoom');
+            sessionStorage.removeItem('action');
+            sessionStorage.removeItem('roomCode');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

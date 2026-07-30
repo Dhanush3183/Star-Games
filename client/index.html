@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Games - Real-Time Multiplayer Games</title>
+    <meta name="description" content="Play multiplayer games with your friends in real time.">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-particles" id="particles"></div>
+    <div class="container glass-panel animate-in">
+        <header class="text-center">
+            <h1 class="main-title gradient-text">Star Games</h1>
+            <p class="subtitle">Play multiplayer games with your friends in real time.</p>
+        </header>
+
+        <main>
+            <div class="nickname-section">
+                <label for="nicknameInput">Enter Nickname</label>
+                <input type="text" id="nicknameInput" placeholder="e.g. Ghost_27" maxlength="16">
+                <div id="nicknameError" class="error-text"></div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="btnCreateRoom" onclick="navCreateRoom()">
+                    <span class="icon">➕</span> Create Room
+                </button>
+                <button class="btn btn-secondary" id="btnJoinRoom" onclick="navJoinRoom()">
+                    <span class="icon">🤝</span> Join Room
+                </button>
+            </div>
+
+            <h2 class="section-title">Available Games</h2>
+            <div class="game-cards">
+                <div class="game-card glass-panel-sm">
+                    <div class="game-icon">⚛️</div>
+                    <h3>Chain Reaction</h3>
+                    <p>Strategic explosive placement.</p>
+                    <div class="game-meta">
+                        <span class="badge">2-3 Players</span>
+                        <span class="badge">Hard</span>
+                    </div>
+                </div>
+                <div class="game-card glass-panel-sm">
+                    <div class="game-icon">❌⭕</div>
+                    <h3>Tic Tac Toe (5x5)</h3>
+                    <p>Connect 4 in a row to win.</p>
+                    <div class="game-meta">
+                        <span class="badge">2-3 Players</span>
+                        <span class="badge">Easy</span>
+                    </div>
+                </div>
+                <div class="game-card glass-panel-sm">
+                    <div class="game-icon">🔴🟡</div>
+                    <h3>Connect Four</h3>
+                    <p>Drop discs to connect 4.</p>
+                    <div class="game-meta">
+                        <span class="badge">2-3 Players</span>
+                        <span class="badge">Medium</span>
+                    </div>
+                </div>
+                <div class="game-card glass-panel-sm">
+                    <div class="game-icon">🎨</div>
+                    <h3>Draw & Guess</h3>
+                    <p>Draw words and guess them.</p>
+                    <div class="game-meta">
+                        <span class="badge">2-3 Players</span>
+                        <span class="badge">Fun</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        // Init particles or simple background effects
+        initParticles();
+
+        function navCreateRoom() {
+            if (validateAndSaveNickname()) {
+                playSound('click');
+                window.location.href = 'create.html';
+            }
+        }
+
+        function navJoinRoom() {
+            if (validateAndSaveNickname()) {
+                playSound('click');
+                window.location.href = 'join.html';
+            }
+        }
+    </script>
+</body>
+</html>

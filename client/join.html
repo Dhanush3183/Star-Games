@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Games - Join Room</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-particles" id="particles"></div>
+    <div class="container glass-panel animate-in">
+        <button class="btn btn-icon btn-back" onclick="navBack()">⬅️ Back</button>
+        
+        <header class="text-center">
+            <h1 class="main-title gradient-text">Join Room</h1>
+            <p class="subtitle">Enter the code to play with friends.</p>
+        </header>
+
+        <main>
+            <div class="form-group text-center">
+                <label for="roomCodeInput">Room Code</label>
+                <input type="text" id="roomCodeInput" class="code-input" placeholder="A7FQX2" maxlength="6" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="action-buttons mt-2">
+                <button class="btn btn-primary btn-block" id="btnJoin" onclick="handleJoin()">
+                    Join Room 🚀
+                </button>
+            </div>
+            
+            <div id="joinError" class="error-text text-center mt-1"></div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        initParticles();
+        checkNickname();
+
+        function navBack() {
+            playSound('click');
+            window.location.href = 'index.html';
+        }
+
+        function handleJoin() {
+            playSound('click');
+            const code = document.getElementById('roomCodeInput').value.trim();
+            if (code.length !== 6) {
+                document.getElementById('joinError').innerText = "Room code must be 6 characters.";
+                return;
+            }
+            
+            sessionStorage.setItem('action', 'join');
+            sessionStorage.setItem('roomCode', code);
+            window.location.href = 'lobby.html';
+        }
+    </script>
+</body>
+</html>

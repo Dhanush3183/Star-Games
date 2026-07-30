@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Games - Create Room</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-particles" id="particles"></div>
+    <div class="container glass-panel animate-in">
+        <button class="btn btn-icon btn-back" onclick="navBack()">⬅️ Back</button>
+        
+        <header class="text-center">
+            <h1 class="main-title gradient-text">Create Room</h1>
+            <p class="subtitle">Host a new game for your friends.</p>
+        </header>
+
+        <main>
+            <div class="form-group">
+                <label>Maximum Players</label>
+                <div class="radio-group">
+                    <label class="radio-card">
+                        <input type="radio" name="maxPlayers" value="2" checked>
+                        <div class="card-content">
+                            <span class="icon">👥</span>
+                            <span>2 Players</span>
+                        </div>
+                    </label>
+                    <label class="radio-card">
+                        <input type="radio" name="maxPlayers" value="3">
+                        <div class="card-content">
+                            <span class="icon">🗣️</span>
+                            <span>3 Players</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Default Game (Optional)</label>
+                <select id="gameSelect" class="styled-select">
+                    <option value="">-- Choose in Lobby --</option>
+                    <option value="chainReaction">Chain Reaction</option>
+                    <option value="ticTacToe">Tic Tac Toe</option>
+                    <option value="connectFour">Connect Four</option>
+                    <option value="drawAndGuess">Draw & Guess</option>
+                </select>
+            </div>
+
+            <div class="action-buttons mt-2">
+                <button class="btn btn-primary btn-block" id="btnCreate" onclick="handleCreate()">
+                    Create Room 🚀
+                </button>
+            </div>
+            
+            <div id="createError" class="error-text text-center mt-1"></div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        initParticles();
+        checkNickname(); // Ensure nickname exists
+
+        function navBack() {
+            playSound('click');
+            window.location.href = 'index.html';
+        }
+
+        function handleCreate() {
+            playSound('click');
+            const maxPlayers = document.querySelector('input[name="maxPlayers"]:checked').value;
+            const selectedGame = document.getElementById('gameSelect').value;
+            
+            // Store preferences in sessionStorage to be read by lobby.html or handle socket creation here
+            // Actually, we should just redirect to lobby with params or store intent.
+            // Let's store intent in sessionStorage and let lobby.html handle the socket connection.
+            sessionStorage.setItem('action', 'create');
+            sessionStorage.setItem('maxPlayers', maxPlayers);
+            if(selectedGame) sessionStorage.setItem('selectedGame', selectedGame);
+            
+            window.location.href = 'lobby.html';
+        }
+    </script>
+</body>
+</html>

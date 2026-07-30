@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Games - Game</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="game-body">
+    <div class="background-particles" id="particles"></div>
+    
+    <div class="game-layout">
+        <!-- Top Info Bar -->
+        <header class="game-header glass-panel">
+            <div class="header-left">
+                <span class="game-name" id="gameNameDisplay">Game Name</span>
+                <span class="room-code-badge" id="roomCodeBadge">Code: ---</span>
+            </div>
+            <div class="header-center">
+                <div class="turn-indicator" id="turnIndicator">
+                    Waiting for players...
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-icon btn-sm" id="btnMute" onclick="toggleMute()" title="Mute/Unmute">🔊</button>
+                <button class="btn btn-danger btn-sm" onclick="leaveGame()">Leave Room</button>
+            </div>
+        </header>
+
+        <!-- Main Game Area -->
+        <main class="game-main">
+            <!-- Left Sidebar: Players -->
+            <aside class="sidebar-left glass-panel">
+                <h3>Players</h3>
+                <div id="gamePlayersList" class="players-list-sm">
+                    <!-- Players injected here -->
+                </div>
+            </aside>
+
+            <!-- Center: Game Board -->
+            <div class="board-container" id="boardContainer">
+                <!-- Board injected here based on selected game -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Overlay for Win/Draw/Restart -->
+    <div class="overlay" id="gameOverOverlay" style="display: none;">
+        <div class="overlay-content text-center">
+            <h1 class="gradient-text" id="gameOverTitle">Game Over</h1>
+            <p id="gameOverMessage" class="subtitle"></p>
+            <div class="mt-2">
+                <button class="btn btn-primary" id="btnVoteRestart" onclick="voteRestart()">Play Again</button>
+                <p class="restart-status mt-1" id="restartStatus"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disconnect Overlay -->
+    <div class="overlay" id="disconnectOverlay" style="display: none;">
+        <div class="overlay-content text-center">
+            <h2 class="error-text">Player Disconnected</h2>
+            <p id="disconnectMessage"></p>
+            <p class="mt-1">Waiting to reconnect...</p>
+        </div>
+    </div>
+
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/socket.js"></script>
+    <script src="js/game.js"></script>
+    <script>
+        initParticles();
+        checkNickname();
+        
+        // Re-establish connection or get existing
+        const socket = setupSocket();
+        
+        // In case of refresh, try to rejoin
+        const code = sessionStorage.getItem('roomCode');
+        const nickname = sessionStorage.getItem('nickname');
+        if (code && nickname) {
+            socket.emit('joinRoom', { nickname, code }, (res) => {
+                if (!res.success) {
+                    window.location.href = 'index.html';
+                }
+            });
+        } else {
+            window.location.href = 'index.html';
+        }
+
+        function leaveGame() {
+            playSound('leave');
+            socket.emit('leaveRoom');
+            sessionStorage.removeItem('action');
+            sessionStorage.removeItem('roomCode');
+            window.location.href = 'index.html';
+        }
+        
+        function toggleMute() {
+            const isMuted = toggleGlobalMute();
+            document.getElementById('btnMute').innerText = isMuted ? '🔇' : '🔊';
+        }
+
+        function voteRestart() {
+            playSound('click');
+            socket.emit('voteRestart');
+            document.getElementById('btnVoteRestart').disabled = true;
+            document.getElementById('restartStatus').innerText = "Waiting for others...";
+        }
+    </script>
+</body>
+</html>
