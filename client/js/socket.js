@@ -8,7 +8,7 @@ function setupSocket() {
     // For this setup, we assume it's hosted together or we hardcode the Render URL later.
     // For now, we connect to the current host. 
     // In actual deployment, you'd do: const url = window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://your-render-app.onrender.com';
-    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '';
+    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : 'https://star-games-backend.onrender.com';
     
     _socket = io(serverUrl);
     
