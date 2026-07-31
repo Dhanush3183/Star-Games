@@ -6,6 +6,7 @@ const drawAndGuess = require('./games/drawAndGuess');
 const spikeAttack = require('./games/spikeAttack');
 const memoryCards = require('./games/memoryCards');
 const uno = require('./games/uno');
+const ludo = require('./games/ludo');
 
 const PLAYER_COLORS_2 = ['#ff3366', '#33ccff'];
 const PLAYER_COLORS_3 = ['#ff3366', '#33ccff', '#99ff99'];
@@ -17,7 +18,8 @@ const games = {
   drawAndGuess,
   spikeAttack,
   memoryCards,
-  uno
+  uno,
+  ludo
 };
 
 function setupSocketHandlers(io) {
@@ -141,6 +143,8 @@ function setupSocketHandlers(io) {
         } else if (room.selectedGame === 'memoryCards') {
           result = gameModule.processMove(room.gameState, player, moveData.cardIndex);
         } else if (room.selectedGame === 'uno') {
+          result = gameModule.processMove(room.gameState, player, moveData);
+        } else if (room.selectedGame === 'ludo') {
           result = gameModule.processMove(room.gameState, player, moveData);
         }
         

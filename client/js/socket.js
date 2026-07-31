@@ -81,7 +81,8 @@ function updateLobbyUI(room) {
         drawAndGuess: 'Draw & Guess',
         spikeAttack: 'Spike Attack',
         memoryCards: 'Memory Cards',
-        uno: 'UNO'
+        uno: 'UNO',
+        ludo: 'Ludo'
     };
     
     if (_socket.id === room.host) {

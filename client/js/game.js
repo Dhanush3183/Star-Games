@@ -8,13 +8,21 @@ const gameNames = {
     drawAndGuess: 'Draw and Guess',
     spikeAttack: 'Spike Attack',
     memoryCards: 'Memory Cards',
-    uno: 'UNO'
+    uno: 'UNO',
+    ludo: 'Ludo'
 };
 
 const _gameSocket = setupSocket();
 
 _gameSocket.on('gameStateUpdated', (data) => {
     if (data.gameState) {
+        if (currentRoom && currentRoom.selectedGame === 'ludo' && data.moveData && data.moveData.action === 'move') {
+            const oldState = currentGameState;
+            currentGameState = data.gameState;
+            playLudoAnimations(oldState, currentGameState, data.moveData);
+            return;
+        }
+
         currentGameState = data.gameState;
         if (data.moveData && data.moveData.steps && data.moveData.steps.length > 1) {
             playChainReactionAnimations(data.gameState, data.moveData.steps);
@@ -272,6 +280,8 @@ function initBoard() {
             </div>
         `;
         container.appendChild(board);
+    } else if (currentRoom.selectedGame === 'ludo') {
+        initLudo(container);
     }
 }
 
@@ -626,6 +636,8 @@ function renderBoard(gameState, moveData = null) {
                 handUI.appendChild(createUnoCardUI(card, true, idx, playable));
             });
         }
+    } else if (currentRoom.selectedGame === 'ludo') {
+        renderLudo(gameState, moveData);
     }
 }
 
@@ -971,3 +983,477 @@ if (_gameSocket) {
         chat.scrollTop = chat.scrollHeight;
     });
 }
+
+// --- Ludo Logic ---
+let ludoPathCoords = [];
+let ludoHomePaths = [];
+let ludoBaseCoords = [];
+
+function initLudo(container) {
+    const layout = document.createElement('div');
+    layout.className = 'ludo-layout';
+    
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 1000 1000");
+    svg.className = 'ludo-board-svg';
+    svg.id = 'ludo-svg';
+    layout.appendChild(svg);
+    
+    const diceDiv = document.createElement('div');
+    diceDiv.className = 'ludo-dice-container';
+    
+    const dice = document.createElement('div');
+    dice.id = 'ludo-dice';
+    dice.className = 'ludo-dice';
+    dice.innerText = '6';
+    dice.onclick = () => makeMove({ action: 'roll' });
+    
+    const rollBtn = document.createElement('button');
+    rollBtn.className = 'btn btn-primary';
+    rollBtn.innerText = 'Roll Dice';
+    rollBtn.onclick = () => makeMove({ action: 'roll' });
+    
+    diceDiv.appendChild(dice);
+    diceDiv.appendChild(rollBtn);
+    layout.appendChild(diceDiv);
+    
+    container.appendChild(layout);
+}
+
+function drawLudoBoard(gameState) {
+    const svg = document.getElementById('ludo-svg');
+    if (!svg || svg.dataset.drawn === 'true') return;
+    
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    ludoPathCoords = [];
+    ludoHomePaths = [];
+    ludoBaseCoords = [];
+    
+    // Set fixed viewBox
+    svg.setAttribute("viewBox", "0 0 750 750");
+    const CELL = 50;
+    
+    // Draw board background (white)
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("width", "750");
+    bg.setAttribute("height", "750");
+    bg.setAttribute("fill", "#fff");
+    svg.appendChild(bg);
+    
+    // Draw 4 Bases
+    const bases = [
+        { ludoIdx: 0, color: '#22c55e', x: 0, y: 0 }, // Green
+        { ludoIdx: 1, color: '#eab308', x: 9, y: 0 }, // Yellow
+        { ludoIdx: 2, color: '#3b82f6', x: 9, y: 9 }, // Blue
+        { ludoIdx: 3, color: '#ef4444', x: 0, y: 9 }  // Red
+    ];
+    
+    bases.forEach(b => {
+        const outer = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        outer.setAttribute("x", b.x * CELL);
+        outer.setAttribute("y", b.y * CELL);
+        outer.setAttribute("width", 6 * CELL);
+        outer.setAttribute("height", 6 * CELL);
+        outer.setAttribute("fill", b.color);
+        svg.appendChild(outer);
+        
+        const inner = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        inner.setAttribute("x", (b.x + 1) * CELL);
+        inner.setAttribute("y", (b.y + 1) * CELL);
+        inner.setAttribute("width", 4 * CELL);
+        inner.setAttribute("height", 4 * CELL);
+        inner.setAttribute("fill", "#fff");
+        svg.appendChild(inner);
+        
+        // Save base pawn coordinates
+        ludoBaseCoords[b.ludoIdx] = [
+            {x: (b.x + 2)*CELL, y: (b.y + 2)*CELL},
+            {x: (b.x + 4)*CELL, y: (b.y + 2)*CELL},
+            {x: (b.x + 2)*CELL, y: (b.y + 4)*CELL},
+            {x: (b.x + 4)*CELL, y: (b.y + 4)*CELL}
+        ];
+        
+        // Draw circles for base pawn spots
+        ludoBaseCoords[b.ludoIdx].forEach(pt => {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", pt.x);
+            circle.setAttribute("cy", pt.y);
+            circle.setAttribute("r", 15);
+            circle.setAttribute("fill", "#eee");
+            circle.setAttribute("stroke", "#ccc");
+            circle.setAttribute("stroke-width", "2");
+            svg.appendChild(circle);
+        });
+    });
+    
+    // Draw 52 track cells
+    const pathCoords = [
+        [1,6], [2,6], [3,6], [4,6], [5,6],
+        [6,5], [6,4], [6,3], [6,2], [6,1], [6,0],
+        [7,0], [8,0],
+        [8,1], [8,2], [8,3], [8,4], [8,5],
+        [9,6], [10,6], [11,6], [12,6], [13,6], [14,6],
+        [14,7], [14,8],
+        [13,8], [12,8], [11,8], [10,8], [9,8],
+        [8,9], [8,10], [8,11], [8,12], [8,13], [8,14],
+        [7,14], [6,14],
+        [6,13], [6,12], [6,11], [6,10], [6,9],
+        [5,8], [4,8], [3,8], [2,8], [1,8], [0,8],
+        [0,7], [0,6]
+    ];
+    
+    pathCoords.forEach((coord, i) => {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", coord[0] * CELL);
+        rect.setAttribute("y", coord[1] * CELL);
+        rect.setAttribute("width", CELL);
+        rect.setAttribute("height", CELL);
+        rect.setAttribute("fill", "white");
+        rect.setAttribute("stroke", "#333");
+        
+        if (i === 0) rect.setAttribute("fill", "#22c55e"); // Green Start
+        if (i === 13) rect.setAttribute("fill", "#eab308"); // Yellow Start
+        if (i === 26) rect.setAttribute("fill", "#3b82f6"); // Blue Start
+        if (i === 39) rect.setAttribute("fill", "#ef4444"); // Red Start
+        
+        let isStar = false;
+        let isStartCell = -1;
+        if ([8, 21, 34, 47].includes(i)) {
+            rect.setAttribute("fill", "#ddd"); // Safe zones
+            isStar = true;
+        }
+        if (i === 0) isStartCell = 0;
+        if (i === 13) isStartCell = 1;
+        if (i === 26) isStartCell = 2;
+        if (i === 39) isStartCell = 3;
+        
+        svg.appendChild(rect);
+        
+        const cxCell = coord[0]*CELL + CELL/2;
+        const cyCell = coord[1]*CELL + CELL/2;
+        
+        if (isStar) {
+            // Draw a star shape
+            const star = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            const outerR = 15;
+            const innerR = 7;
+            let points = [];
+            for(let pts=0; pts<10; pts++) {
+                const r = pts % 2 === 0 ? outerR : innerR;
+                const angle = (Math.PI * 2 * pts) / 10 - Math.PI/2;
+                points.push(`${cxCell + r * Math.cos(angle)},${cyCell + r * Math.sin(angle)}`);
+            }
+            star.setAttribute("points", points.join(" "));
+            star.setAttribute("fill", "#fff");
+            star.setAttribute("stroke", "#333");
+            star.setAttribute("stroke-width", "1.5");
+            svg.appendChild(star);
+        }
+        
+        if (isStartCell !== -1) {
+            const arrowAngles = [0, 90, 180, 270];
+            const angleDeg = arrowAngles[isStartCell];
+            
+            const arrowGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            arrowGroup.setAttribute("transform", `translate(${cxCell}, ${cyCell}) rotate(${angleDeg})`);
+            
+            const arrow = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            arrow.setAttribute("points", "-10,-5 0,-5 0,-10 10,0 0,10 0,5 -10,5");
+            arrow.setAttribute("fill", "#fff");
+            arrow.setAttribute("stroke", "#333");
+            arrowGroup.appendChild(arrow);
+            svg.appendChild(arrowGroup);
+        }
+        
+        ludoPathCoords.push({x: cxCell, y: cyCell});
+    });
+    
+    // Draw Home Paths
+    const homePathsList = [
+        { ludoIdx: 0, color: '#22c55e', coords: [[1,7], [2,7], [3,7], [4,7], [5,7]] }, // Green
+        { ludoIdx: 1, color: '#eab308', coords: [[7,1], [7,2], [7,3], [7,4], [7,5]] }, // Yellow
+        { ludoIdx: 2, color: '#3b82f6', coords: [[13,7], [12,7], [11,7], [10,7], [9,7]] }, // Blue
+        { ludoIdx: 3, color: '#ef4444', coords: [[7,13], [7,12], [7,11], [7,10], [7,9]] }  // Red
+    ];
+    
+    homePathsList.forEach(hp => {
+        ludoHomePaths[hp.ludoIdx] = [];
+        hp.coords.forEach(coord => {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", coord[0] * CELL);
+            rect.setAttribute("y", coord[1] * CELL);
+            rect.setAttribute("width", CELL);
+            rect.setAttribute("height", CELL);
+            rect.setAttribute("fill", hp.color);
+            rect.setAttribute("stroke", "#333");
+            svg.appendChild(rect);
+            ludoHomePaths[hp.ludoIdx].push({x: coord[0]*CELL + CELL/2, y: coord[1]*CELL + CELL/2});
+        });
+    });
+    
+    // Draw Center Triangles
+    const cx = 7.5 * CELL;
+    const cy = 7.5 * CELL;
+
+    const drawTriangle = (p1, p2, color) => {
+        const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        poly.setAttribute("points", `${cx},${cy} ${p1[0]*CELL},${p1[1]*CELL} ${p2[0]*CELL},${p2[1]*CELL}`);
+        poly.setAttribute("fill", color);
+        poly.setAttribute("stroke", "#333");
+        svg.appendChild(poly);
+    };
+
+    drawTriangle([6,6], [6,9], '#22c55e'); // Green
+    drawTriangle([6,6], [9,6], '#eab308'); // Yellow
+    drawTriangle([9,6], [9,9], '#3b82f6'); // Blue
+    drawTriangle([6,9], [9,9], '#ef4444'); // Red
+    
+    svg.dataset.drawn = 'true';
+}
+
+function renderLudo(gameState, moveData) {
+    if (!gameState) return;
+    drawLudoBoard(gameState);
+    
+    const layout = document.querySelector('.ludo-layout');
+    if (!layout) return;
+    
+    // Update Dice
+    const diceUI = document.getElementById('ludo-dice');
+    if (diceUI) {
+        diceUI.innerText = gameState.diceValue || '6';
+        
+        if (moveData && moveData.action === 'roll') {
+            diceUI.classList.remove('rolling');
+            // force reflow to trigger animation again
+            void diceUI.offsetWidth;
+            diceUI.classList.add('rolling');
+            setTimeout(() => diceUI.classList.remove('rolling'), 500);
+        }
+    }
+    
+    // Render Pawns inside SVG to avoid bounding rect issues
+    document.querySelectorAll('.ludo-pawn-svg').forEach(e => e.remove());
+    
+    const svg = document.getElementById('ludo-svg');
+    
+    const pawnElements = [];
+    
+    gameState.players.forEach(p => {
+        const lIdx = p.ludoIndex;
+        p.pawns.forEach((pawn, pawnIdx) => {
+            let pt = null;
+            if (pawn.status === 'base') {
+                pt = ludoBaseCoords[lIdx][pawnIdx];
+            } else if (pawn.status === 'track') {
+                pt = ludoPathCoords[pawn.position];
+            } else if (pawn.status === 'homePath') {
+                pt = ludoHomePaths[lIdx][pawn.position];
+            } else if (pawn.status === 'home') {
+                const CELL = 50;
+                const hx = 7.5 * CELL;
+                const hy = 7.5 * CELL;
+                const offsets = [
+                    {x: -15, y: 0}, // Green
+                    {x: 0, y: -15}, // Yellow
+                    {x: 15, y: 0}, // Blue
+                    {x: 0, y: 15}  // Red
+                ];
+                pt = {
+                    x: hx + offsets[lIdx].x + (pawnIdx * 5 - 7.5),
+                    y: hy + offsets[lIdx].y + (pawnIdx * 5 - 7.5)
+                };
+            }
+            
+            if (pt) {
+                pawnElements.push({ p, pawn, pt });
+            }
+        });
+    });
+    
+    const ptMap = {};
+    pawnElements.forEach(pe => {
+        const key = `${pe.pt.x},${pe.pt.y}`;
+        if (!ptMap[key]) ptMap[key] = [];
+        ptMap[key].push(pe);
+    });
+    
+    Object.values(ptMap).forEach(group => {
+        group.forEach((pe, index) => {
+            const total = group.length;
+            let offset = {x: 0, y: 0};
+            let r = 12;
+            
+            if (total > 1) {
+                r = 9;
+                if (total === 2) {
+                    offset = index === 0 ? {x:-6, y:-6} : {x:6, y:6};
+                } else if (total === 3) {
+                    if (index === 0) offset = {x:0, y:-8};
+                    if (index === 1) offset = {x:-8, y:6};
+                    if (index === 2) offset = {x:8, y:6};
+                } else if (total >= 4) {
+                    const offsets4 = [{x:-6, y:-6}, {x:6, y:-6}, {x:-6, y:6}, {x:6, y:6}];
+                    offset = offsets4[index % 4];
+                }
+            }
+            
+            const finalPt = {x: pe.pt.x + offset.x, y: pe.pt.y + offset.y};
+            
+            const el = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            el.setAttribute("class", "ludo-pawn-svg");
+            el.setAttribute("cx", finalPt.x);
+            el.setAttribute("cy", finalPt.y);
+            el.setAttribute("r", r);
+            el.setAttribute("fill", pe.p.color);
+            el.setAttribute("stroke", "#fff");
+            el.setAttribute("stroke-width", "2");
+            el.style.transition = "all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+            
+            if (pe.p.id === _gameSocket.id && gameState.players[gameState.turnIndex].id === _gameSocket.id) {
+                el.onclick = () => makeMove({ action: 'move', pawnId: pe.pawn.id });
+                el.style.cursor = 'pointer';
+            } else {
+                el.style.cursor = 'default';
+            }
+            
+            el.onmouseover = () => { if (el.style.cursor === 'pointer') el.setAttribute('r', r + 3); };
+            el.onmouseout = () => { el.setAttribute('r', r); };
+            
+            svg.appendChild(el);
+        });
+    });
+}
+
+function playLudoAnimations(oldState, newState, moveData) {
+    const movedPawnId = moveData.pawnId;
+    const playerId = oldState.players[oldState.turnIndex].id;
+    const oldPlayer = oldState.players.find(p => p.id === playerId);
+    const newPlayer = newState.players.find(p => p.id === playerId);
+    
+    if (!oldPlayer || !newPlayer) {
+        finishLudoAnim(); return;
+    }
+    
+    const oldPawn = oldPlayer.pawns.find(p => p.id === movedPawnId);
+    const newPawn = newPlayer.pawns.find(p => p.id === movedPawnId);
+    
+    if (!oldPawn || !newPawn) {
+        finishLudoAnim(); return;
+    }
+    
+    const captured = [];
+    newState.players.forEach(np => {
+        const op = oldState.players.find(p => p.id === np.id);
+        if (!op || op.id === playerId) return;
+        np.pawns.forEach(npawn => {
+            const opawn = op.pawns.find(p => p.id === npawn.id);
+            if (opawn.status === 'track' && npawn.status === 'base') {
+                captured.push({ player: op, pawn: opawn });
+            }
+        });
+    });
+
+    let path = [];
+    if (oldPawn.status === 'base' && newPawn.status === 'track') {
+        path.push({ status: 'track', position: newPawn.position });
+    } else if (oldPawn.status === 'track' && newPawn.status === 'track') {
+        let curr = oldPawn.position;
+        while (curr !== newPawn.position) {
+            curr = (curr + 1) % 52;
+            path.push({ status: 'track', position: curr });
+        }
+    } else if (oldPawn.status === 'track' && (newPawn.status === 'homePath' || newPawn.status === 'home')) {
+        let curr = oldPawn.position;
+        while (curr !== newPlayer.homeTurn) {
+            curr = (curr + 1) % 52;
+            path.push({ status: 'track', position: curr });
+        }
+        
+        let targetHp = newPawn.status === 'home' ? 5 : newPawn.position;
+        for (let i = 0; i <= targetHp; i++) {
+            path.push({ status: i === 5 ? 'home' : 'homePath', position: i });
+        }
+    } else if (oldPawn.status === 'homePath' && (newPawn.status === 'homePath' || newPawn.status === 'home')) {
+        let curr = oldPawn.position;
+        let targetHp = newPawn.status === 'home' ? 5 : newPawn.position;
+        for (let i = curr + 1; i <= targetHp; i++) {
+            path.push({ status: i === 5 ? 'home' : 'homePath', position: i });
+        }
+    }
+
+    if (path.length === 0) {
+        finishLudoAnim();
+        return;
+    }
+
+    let tempState = JSON.parse(JSON.stringify(oldState));
+    let stepIdx = 0;
+    
+    function animateStep() {
+        if (stepIdx < path.length) {
+            const step = path[stepIdx];
+            const pTemp = tempState.players.find(p => p.id === playerId);
+            const pawnTemp = pTemp.pawns.find(p => p.id === movedPawnId);
+            pawnTemp.status = step.status;
+            pawnTemp.position = step.position;
+            
+            renderLudo(tempState, null);
+            stepIdx++;
+            setTimeout(animateStep, 150);
+        } else {
+            if (captured.length > 0) animateCaptures();
+            else finishLudoAnim();
+        }
+    }
+    
+    function animateCaptures() {
+        let longestPath = 0;
+        let capPaths = [];
+        
+        captured.forEach(c => {
+            const startCell = c.player.startCell;
+            let cPath = [];
+            let curr = c.pawn.position;
+            while (curr !== startCell) {
+                curr = (curr - 1 + 52) % 52;
+                cPath.push({ status: 'track', position: curr });
+            }
+            cPath.push({ status: 'base' });
+            capPaths.push({ pawnRef: c, path: cPath });
+            if (cPath.length > longestPath) longestPath = cPath.length;
+        });
+        
+        let cStep = 0;
+        function capStep() {
+            if (cStep < longestPath) {
+                capPaths.forEach(cp => {
+                    if (cStep < cp.path.length) {
+                        const step = cp.path[cStep];
+                        const pTemp = tempState.players.find(p => p.id === cp.pawnRef.player.id);
+                        const pawnTemp = pTemp.pawns.find(p => p.id === cp.pawnRef.pawn.id);
+                        pawnTemp.status = step.status;
+                        pawnTemp.position = step.position;
+                    }
+                });
+                renderLudo(tempState, null);
+                cStep++;
+                setTimeout(capStep, 60);
+            } else {
+                finishLudoAnim();
+            }
+        }
+        
+        capStep();
+    }
+    
+    function finishLudoAnim() {
+        renderBoard(newState, moveData);
+        updateGameHeader();
+        checkGameOver();
+        updatePlayersListUI();
+    }
+    
+    animateStep();
+}
+
