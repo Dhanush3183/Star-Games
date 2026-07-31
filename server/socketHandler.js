@@ -3,6 +3,9 @@ const chainReaction = require('./games/chainReaction');
 const ticTacToe = require('./games/ticTacToe');
 const connectFour = require('./games/connectFour');
 const drawAndGuess = require('./games/drawAndGuess');
+const spikeAttack = require('./games/spikeAttack');
+const memoryCards = require('./games/memoryCards');
+const uno = require('./games/uno');
 
 const PLAYER_COLORS_2 = ['#ff3366', '#33ccff'];
 const PLAYER_COLORS_3 = ['#ff3366', '#33ccff', '#99ff99'];
@@ -11,7 +14,10 @@ const games = {
   chainReaction,
   ticTacToe,
   connectFour,
-  drawAndGuess
+  drawAndGuess,
+  spikeAttack,
+  memoryCards,
+  uno
 };
 
 function setupSocketHandlers(io) {
@@ -132,16 +138,28 @@ function setupSocketHandlers(io) {
           result = gameModule.processMove(room.gameState, player, moveData.r, moveData.c);
         } else if (room.selectedGame === 'connectFour') {
           result = gameModule.processMove(room.gameState, player, moveData.c);
+        } else if (room.selectedGame === 'memoryCards') {
+          result = gameModule.processMove(room.gameState, player, moveData.cardIndex);
+        } else if (room.selectedGame === 'uno') {
+          result = gameModule.processMove(room.gameState, player, moveData);
         }
         
         if (result && result.valid) {
           room.gameState = result.gameState;
           
-          // Send specific move data for animations (like explosions or disc drops)
           io.to(room.code).emit('gameStateUpdated', { 
             gameState: room.gameState, 
             moveData: { ...moveData, ...result } // Includes explosions, landed row, etc.
           });
+          
+          if (result.mismatchDelay) {
+            setTimeout(() => {
+              if (room.status === 'playing' && room.selectedGame === 'memoryCards') {
+                room.gameState = gameModule.resolveMismatch(room.gameState);
+                io.to(room.code).emit('gameStateUpdated', { gameState: room.gameState });
+              }
+            }, 1000);
+          }
         }
       }
     });
@@ -248,6 +266,17 @@ function setupSocketHandlers(io) {
         }
       }
     });
+
+    socket.on('sa-input', (inputData) => {
+      const room = getRoom(socket.roomCode);
+      if (room && room.status === 'playing' && room.selectedGame === 'spikeAttack') {
+        const player = room.gameState.players.find(p => p.id === socket.id);
+        if (player && player.active) {
+          player.dx = inputData.dx;
+          player.dy = inputData.dy;
+        }
+      }
+    });
     
     socket.on('leaveRoom', () => {
       handleLeave(socket);
@@ -329,6 +358,20 @@ function setupSocketHandlers(io) {
       }
     }
   }, 1000);
+
+  // Global Server Loop for Spike Attack real-time physics (20 TPS)
+  setInterval(() => {
+    for (const [code, room] of rooms.entries()) {
+      if (room.status === 'playing' && room.selectedGame === 'spikeAttack' && room.gameState && !room.gameState.ended) {
+        room.gameState = games.spikeAttack.updatePhysics(room.gameState);
+        io.to(code).emit('sa-sync', room.gameState);
+        
+        if (room.gameState.ended) {
+          io.to(code).emit('gameStateUpdated', room.gameState);
+        }
+      }
+    }
+  }, 1000 / 20);
 }
 
 module.exports = setupSocketHandlers;

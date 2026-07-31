@@ -78,7 +78,10 @@ function updateLobbyUI(room) {
         chainReaction: 'Chain Reaction',
         ticTacToe: 'Tic Tac Toe',
         connectFour: 'Connect Four',
-        drawAndGuess: 'Draw & Guess'
+        drawAndGuess: 'Draw & Guess',
+        spikeAttack: 'Spike Attack',
+        memoryCards: 'Memory Cards',
+        uno: 'UNO'
     };
     
     if (_socket.id === room.host) {

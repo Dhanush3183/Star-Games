@@ -4,7 +4,11 @@ let currentGameState = null;
 const gameNames = {
     chainReaction: 'Chain Reaction',
     ticTacToe: 'Tic Tac Toe',
-    connectFour: 'Connect Four'
+    connectFour: 'Connect Four',
+    drawAndGuess: 'Draw and Guess',
+    spikeAttack: 'Spike Attack',
+    memoryCards: 'Memory Cards',
+    uno: 'UNO'
 };
 
 const _gameSocket = setupSocket();
@@ -25,6 +29,13 @@ _gameSocket.on('gameStateUpdated', (data) => {
         updateGameHeader();
         checkGameOver();
     }
+    updatePlayersListUI();
+});
+
+_gameSocket.on('sa-sync', (gameState) => {
+    currentGameState = gameState;
+    renderBoard(currentGameState);
+    updatePlayersListUI();
 });
 
 _gameSocket.on('playerDisconnected', (player) => {
@@ -60,19 +71,35 @@ function updateGameUI(room) {
     document.getElementById('gameNameDisplay').innerText = gameNames[room.selectedGame] || 'Game';
     document.getElementById('roomCodeBadge').innerText = `Code: ${room.code}`;
     
+    updatePlayersListUI();
+    
+    // Check if disconnected player reconnected
+    if (room.players.every(p => p.connected)) {
+        document.getElementById('disconnectOverlay').style.display = 'none';
+    }
+    
+    updateGameHeader();
+    if (!document.getElementById('boardContainer').children.length) {
+        initBoard();
+        renderBoard(currentGameState);
+    }
+}
+
+function updatePlayersListUI() {
+    if (!currentRoom) return;
     const playersList = document.getElementById('gamePlayersList');
     playersList.innerHTML = '';
     
-    room.players.forEach(p => {
+    currentRoom.players.forEach(p => {
         const item = document.createElement('div');
         item.className = 'player-item-sm';
         item.style.borderLeftColor = p.color;
         
         let scoreHtml = '';
-        if (currentRoom.selectedGame === 'drawAndGuess' && currentGameState && currentGameState.players) {
+        if ((currentRoom.selectedGame === 'drawAndGuess' || currentRoom.selectedGame === 'memoryCards') && currentGameState && currentGameState.players) {
             const statePlayer = currentGameState.players.find(sp => sp.id === p.id);
             if (statePlayer) {
-                scoreHtml = `<span style="margin-left:auto; font-weight:bold; color:var(--primary-main);">${statePlayer.score} pts</span>`;
+                scoreHtml = `<span style="margin-left:auto; font-weight:bold; color:var(--primary);">${statePlayer.score} pts</span>`;
             }
         }
         
@@ -86,17 +113,6 @@ function updateGameUI(room) {
         `;
         playersList.appendChild(item);
     });
-    
-    // Check if disconnected player reconnected
-    if (room.players.every(p => p.connected)) {
-        document.getElementById('disconnectOverlay').style.display = 'none';
-    }
-    
-    updateGameHeader();
-    if (!document.getElementById('boardContainer').children.length) {
-        initBoard();
-        renderBoard(currentGameState);
-    }
 }
 
 function updateGameHeader() {
@@ -197,7 +213,87 @@ function initBoard() {
         container.appendChild(board);
     } else if (currentRoom.selectedGame === 'drawAndGuess') {
         initDrawAndGuess(container);
+    } else if (currentRoom.selectedGame === 'spikeAttack') {
+        initSpikeAttack(container);
+    } else if (currentRoom.selectedGame === 'memoryCards') {
+        const board = document.createElement('div');
+        board.className = 'mc-board';
+        for (let i = 0; i < 36; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'mc-card';
+            cell.id = `mc-card-${i}`;
+            cell.onclick = () => makeMove({cardIndex: i});
+            
+            const inner = document.createElement('div');
+            inner.className = 'mc-card-inner';
+            
+            const front = document.createElement('div');
+            front.className = 'mc-card-front';
+            front.innerText = '?';
+            
+            const back = document.createElement('div');
+            back.className = 'mc-card-back';
+            back.id = `mc-card-back-${i}`;
+            
+            inner.appendChild(front);
+            inner.appendChild(back);
+            cell.appendChild(inner);
+            
+            board.appendChild(cell);
+        }
+        container.appendChild(board);
+    } else if (currentRoom.selectedGame === 'uno') {
+        const board = document.createElement('div');
+        board.className = 'uno-layout';
+        board.innerHTML = `
+            <div class="active-color-indicator" id="activeColorBadge"></div>
+            <div class="uno-top" id="unoTopArea"></div>
+            <div class="uno-left" id="unoLeftArea"></div>
+            <div class="uno-right" id="unoRightArea"></div>
+            <div class="uno-center">
+                <div class="uno-pile uno-draw-pile" id="drawPile" onclick="makeMove({action: 'draw'})"></div>
+                <div class="uno-discard-pile" id="discardPile"></div>
+                <div id="directionIndicator" style="position: absolute; top: -50px; left: 50%; transform: translateX(-50%); color: #fff; font-weight: bold; font-size: 1.5rem;">Direction: ↻</div>
+            </div>
+            <div class="uno-bottom">
+                <h2 id="activePlayerLabel" style="color: #fff; margin-bottom: 0.5rem;">Your Turn</h2>
+                <div class="player-hand" id="playerHand"></div>
+            </div>
+            
+            <button class="btn-uno-call" onclick="makeMove({action: 'callUno'})">UNO</button>
+            
+            <div class="color-picker-modal" id="colorPickerModal" style="display: none;">
+                <div class="color-grid">
+                    <button class="color-btn color-red" onclick="makeMove({action: 'play', cardIndex: window.unoPendingIndex, wildColor: 'red'}); document.getElementById('colorPickerModal').style.display = 'none';"></button>
+                    <button class="color-btn color-blue" onclick="makeMove({action: 'play', cardIndex: window.unoPendingIndex, wildColor: 'blue'}); document.getElementById('colorPickerModal').style.display = 'none';"></button>
+                    <button class="color-btn color-green" onclick="makeMove({action: 'play', cardIndex: window.unoPendingIndex, wildColor: 'green'}); document.getElementById('colorPickerModal').style.display = 'none';"></button>
+                    <button class="color-btn color-yellow" onclick="makeMove({action: 'play', cardIndex: window.unoPendingIndex, wildColor: 'yellow'}); document.getElementById('colorPickerModal').style.display = 'none';"></button>
+                </div>
+            </div>
+        `;
+        container.appendChild(board);
     }
+}
+
+window.unoPlayCard = function(index, color) {
+    if (color === 'wild') {
+        window.unoPendingIndex = index;
+        document.getElementById('colorPickerModal').style.display = 'flex';
+    } else {
+        makeMove({action: 'play', cardIndex: index});
+    }
+};
+
+function createUnoCardUI(card, isHand = false, index = null, isPlayable = false) {
+    const el = document.createElement('div');
+    el.className = `uno-card ${card.color}`;
+    el.innerText = card.value;
+    
+    if (isHand && isPlayable) {
+        el.classList.add('playable');
+        el.onclick = () => window.unoPlayCard(index, card.color);
+    }
+    return el;
 }
 
 function playChainReactionAnimations(finalGameState, steps) {
@@ -428,6 +524,126 @@ function renderBoard(gameState, moveData = null) {
         }
     } else if (currentRoom.selectedGame === 'drawAndGuess') {
         renderDrawAndGuess(gameState, moveData);
+    } else if (currentRoom.selectedGame === 'spikeAttack') {
+        renderSpikeAttack(gameState);
+    } else if (currentRoom.selectedGame === 'memoryCards') {
+        if (moveData && moveData.match) {
+            playSound('drop');
+        } else if (moveData) {
+            playSound('click');
+        }
+        
+        for (let i = 0; i < 36; i++) {
+            const cardData = gameState.board[i];
+            const cardUI = document.getElementById(`mc-card-${i}`);
+            const backUI = document.getElementById(`mc-card-back-${i}`);
+            if (!cardUI || !backUI || !cardData) continue;
+            
+            if (cardData.isFlipped || cardData.isMatched) {
+                cardUI.classList.add('flipped');
+                backUI.innerText = cardData.value;
+            } else {
+                cardUI.classList.remove('flipped');
+            }
+            
+            if (cardData.isMatched) {
+                cardUI.classList.add('matched');
+            } else {
+                cardUI.classList.remove('matched');
+            }
+        }
+    } else if (currentRoom.selectedGame === 'uno') {
+        const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+        
+        const dirIndicator = document.getElementById('directionIndicator');
+        if (dirIndicator) dirIndicator.innerText = gameState.direction === 1 ? 'Direction: ↻' : 'Direction: ↺';
+        
+        const colorBadge = document.getElementById('activeColorBadge');
+        if (colorBadge) {
+            if (topCard && topCard.color === 'wild' && gameState.activeColor) {
+                colorBadge.style.display = 'block';
+                colorBadge.style.background = getColorHex(gameState.activeColor);
+                colorBadge.innerText = 'Color: ' + gameState.activeColor.toUpperCase();
+            } else {
+                colorBadge.style.display = 'none';
+            }
+        }
+
+        const discardUI = document.getElementById('discardPile');
+        if (discardUI && topCard) {
+            discardUI.innerHTML = '';
+            discardUI.appendChild(createUnoCardUI(topCard, false));
+        }
+
+        const topArea = document.getElementById('unoTopArea');
+        const leftArea = document.getElementById('unoLeftArea');
+        const rightArea = document.getElementById('unoRightArea');
+        
+        if (topArea) topArea.innerHTML = '';
+        if (leftArea) leftArea.innerHTML = '';
+        if (rightArea) rightArea.innerHTML = '';
+        
+        const otherPlayers = gameState.players.filter(p => p.id !== _gameSocket.id);
+        otherPlayers.forEach((p, idx) => {
+            const oppDiv = document.createElement('div');
+            oppDiv.className = 'opponent-area';
+            oppDiv.innerHTML = `<h3 style="color:#fff">${p.nickname}</h3><div style="color:#aaa">${p.cardsLeft} Cards</div>`;
+            const cardsDiv = document.createElement('div');
+            cardsDiv.className = 'opponent-cards';
+            for (let i = 0; i < p.cardsLeft; i++) {
+                const hidden = document.createElement('div');
+                hidden.className = 'uno-card-mini';
+                cardsDiv.appendChild(hidden);
+            }
+            oppDiv.appendChild(cardsDiv);
+            
+            if (otherPlayers.length === 1) {
+                // 2 player game, opponent goes top
+                if (topArea) topArea.appendChild(oppDiv);
+            } else if (otherPlayers.length === 2) {
+                // 3 player game, one left, one right
+                if (idx === 0 && leftArea) leftArea.appendChild(oppDiv);
+                if (idx === 1 && rightArea) rightArea.appendChild(oppDiv);
+            }
+        });
+
+        const handUI = document.getElementById('playerHand');
+        const activePlayerLabel = document.getElementById('activePlayerLabel');
+        const myState = gameState.players.find(p => p.id === _gameSocket.id);
+        const currentPlayer = gameState.players[gameState.turnIndex];
+        
+        if (activePlayerLabel) {
+            activePlayerLabel.innerText = currentPlayer.id === _gameSocket.id ? "Your Turn" : `${currentPlayer.nickname}'s Turn`;
+            activePlayerLabel.style.color = currentPlayer.color;
+        }
+        
+        if (handUI && myState && myState.hand) {
+            handUI.innerHTML = '';
+            const isMyTurn = currentPlayer.id === _gameSocket.id;
+            
+            myState.hand.forEach((card, idx) => {
+                const playable = isMyTurn && isUnoPlayable(card, gameState);
+                handUI.appendChild(createUnoCardUI(card, true, idx, playable));
+            });
+        }
+    }
+}
+
+function isUnoPlayable(card, gameState) {
+    const top = gameState.discardPile[gameState.discardPile.length - 1];
+    if (card.color === 'wild') return true;
+    if (card.color === (gameState.activeColor || top.color)) return true;
+    if (card.value === top.value) return true;
+    return false;
+}
+
+function getColorHex(color) {
+    switch(color) {
+        case 'red': return '#ef4444';
+        case 'blue': return '#3b82f6';
+        case 'green': return '#22c55e';
+        case 'yellow': return '#eab308';
+        default: return '#111';
     }
 }
 
