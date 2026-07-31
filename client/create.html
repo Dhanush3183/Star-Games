@@ -18,7 +18,7 @@
 
         <main>
             <div class="form-group">
-                <label>Maximum Players</label>
+                <label>Number Of Players</label>
                 <div class="radio-group">
                     <label class="radio-card">
                         <input type="radio" name="maxPlayers" value="2" checked>
@@ -38,14 +38,13 @@
             </div>
 
             <div class="form-group">
-                <label>Default Game (Optional)</label>
-                <select id="gameSelect" class="styled-select">
-                    <option value="">-- Choose in Lobby --</option>
-                    <option value="chainReaction">Chain Reaction</option>
-                    <option value="ticTacToe">Tic Tac Toe</option>
-                    <option value="connectFour">Connect Four</option>
-                    <option value="drawAndGuess">Draw & Guess</option>
-                </select>
+                <label>Game (Optional)</label>
+                <input type="hidden" name="selectedGame" id="selectedGameInput" value="">
+                <button type="button" class="btn btn-secondary btn-block" id="btnChooseGame" onclick="openGameModal()" style="height: 60px; font-size: 1.2rem; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border);">
+                    <div id="chooseGameText" style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span class="icon">🎮</span> Choose A Game
+                    </div>
+                </button>
             </div>
 
             <div class="action-buttons mt-2">
@@ -56,6 +55,46 @@
             
             <div id="createError" class="error-text text-center mt-1"></div>
         </main>
+    </div>
+
+    <!-- Game Selection Modal -->
+    <div class="overlay" id="gameSelectModal" style="display: none;">
+        <div class="overlay-content text-center" style="max-width: 600px; width: 90%;">
+            <h2 class="gradient-text mb-2">Select a Game</h2>
+            <div class="games-radio-grid">
+                <div class="radio-card game-radio" onclick="selectGame('', '❓', 'Choose Later')">
+                    <div class="card-content">
+                        <span class="icon">❓</span>
+                        <span>Choose Later</span>
+                    </div>
+                </div>
+                <div class="radio-card game-radio" onclick="selectGame('chainReaction', '⚛️', 'Chain Reaction')">
+                    <div class="card-content">
+                        <span class="icon">⚛️</span>
+                        <span>Chain Reaction</span>
+                    </div>
+                </div>
+                <div class="radio-card game-radio" onclick="selectGame('ticTacToe', '❌⭕', 'Tic Tac Toe')">
+                    <div class="card-content">
+                        <span class="icon">❌⭕</span>
+                        <span>Tic Tac Toe</span>
+                    </div>
+                </div>
+                <div class="radio-card game-radio" onclick="selectGame('connectFour', '🔴🟡', 'Connect Four')">
+                    <div class="card-content">
+                        <span class="icon">🔴🟡</span>
+                        <span>Connect Four</span>
+                    </div>
+                </div>
+                <div class="radio-card game-radio" style="grid-column: span 2;" onclick="selectGame('drawAndGuess', '🎨', 'Draw & Guess')">
+                    <div class="card-content">
+                        <span class="icon">🎨</span>
+                        <span>Draw & Guess</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-secondary mt-2" onclick="closeGameModal()">Cancel</button>
+        </div>
     </div>
 
     <script src="js/main.js"></script>
@@ -71,7 +110,7 @@
         function handleCreate() {
             playSound('click');
             const maxPlayers = document.querySelector('input[name="maxPlayers"]:checked').value;
-            const selectedGame = document.getElementById('gameSelect').value;
+            const selectedGame = document.getElementById('selectedGameInput').value;
             
             // Store preferences in sessionStorage to be read by lobby.html or handle socket creation here
             // Actually, we should just redirect to lobby with params or store intent.
@@ -81,6 +120,23 @@
             if(selectedGame) sessionStorage.setItem('selectedGame', selectedGame);
             
             window.location.href = 'lobby.html';
+        }
+
+        function openGameModal() {
+            playSound('click');
+            document.getElementById('gameSelectModal').style.display = 'flex';
+        }
+
+        function closeGameModal() {
+            playSound('click');
+            document.getElementById('gameSelectModal').style.display = 'none';
+        }
+
+        function selectGame(value, icon, text) {
+            playSound('click');
+            document.getElementById('selectedGameInput').value = value;
+            document.getElementById('chooseGameText').innerHTML = `<span class="icon">${icon}</span> ${text}`;
+            document.getElementById('gameSelectModal').style.display = 'none';
         }
     </script>
 </body>

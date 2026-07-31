@@ -49,9 +49,10 @@
         <div class="overlay-content text-center">
             <h1 class="gradient-text" id="gameOverTitle">Game Over</h1>
             <p id="gameOverMessage" class="subtitle"></p>
-            <div class="mt-2">
+            <div class="mt-2" style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
                 <button class="btn btn-primary" id="btnVoteRestart" onclick="voteRestart()">Play Again</button>
-                <p class="restart-status mt-1" id="restartStatus"></p>
+                <button class="btn btn-danger" onclick="leaveGame()">Leave Room</button>
+                <p class="restart-status mt-1" id="restartStatus" style="margin-top: 0;"></p>
             </div>
         </div>
     </div>
